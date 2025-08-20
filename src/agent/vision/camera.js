@@ -29,8 +29,13 @@ export class Camera extends EventEmitter {
     }
   
     async _init () {
+        if (!this.bot.entity || !this.bot.entity.position) {
+            console.warn('[Camera] bot.entity or bot.entity.position is undefined. Camera initialization aborted.');
+            return;
+        }
         const botPos = this.bot.entity.position;
-        const center = new Vec3(botPos.x, botPos.y+this.bot.entity.height, botPos.z);
+        const height = this.bot.entity.height != null ? this.bot.entity.height : 1.8;
+        const center = new Vec3(botPos.x, botPos.y + height, botPos.z);
         this.viewer.setVersion(this.bot.version);
         // Load world
         const worldView = new WorldView(this.bot.world, this.viewDistance, center);
@@ -41,10 +46,17 @@ export class Camera extends EventEmitter {
     }
   
     async capture() {
-        const center = new Vec3(this.bot.entity.position.x, this.bot.entity.position.y+this.bot.entity.height, this.bot.entity.position.z);
+        if (!this.bot.entity || !this.bot.entity.position) {
+            console.warn('[Camera] bot.entity or bot.entity.position is undefined. Capture aborted.');
+            return null;
+        }
+        const height = this.bot.entity.height != null ? this.bot.entity.height : 1.8;
+        const center = new Vec3(this.bot.entity.position.x, this.bot.entity.position.y + height, this.bot.entity.position.z);
         this.viewer.camera.position.set(center.x, center.y, center.z);
         await this.worldView.updatePosition(center);
-        this.viewer.setFirstPersonCamera(this.bot.entity.position, this.bot.entity.yaw, this.bot.entity.pitch);
+        const yaw = this.bot.entity.yaw != null ? this.bot.entity.yaw : 0;
+        const pitch = this.bot.entity.pitch != null ? this.bot.entity.pitch : 0;
+        this.viewer.setFirstPersonCamera(this.bot.entity.position, yaw, pitch);
         this.viewer.update();
         this.renderer.render(this.viewer.scene, this.viewer.camera);
 

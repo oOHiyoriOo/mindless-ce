@@ -2,6 +2,7 @@ import { AgentProcess } from './src/process/agent_process.js';
 import settings from './settings.js';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import process from 'process';
 import { createMindServer } from './src/server/mind_server.js';
 import { mainProxy } from './src/process/main_proxy.js';
 import { readFileSync, writeFileSync } from 'fs';
@@ -39,6 +40,61 @@ async function main() {
         const mindServer = createMindServer(settings.mindserver_port);
     }
     mainProxy.connect();
+
+    // Qdrant collection creation if enabled
+    if (settings.use_qdrant_memory) {
+        try {
+            const { QdrantClient } = await import('@qdrant/js-client-rest');
+            const qdrantClient = new QdrantClient({
+                url: settings.qdrant_url || 'http://localhost:6333',
+                port: settings.qdrant_port || 6333,
+            });
+            // Use a dummy vector to get the size (fallback to 1536 if unknown)
+            let vectorSize = 1536;
+            if (settings.embedding_model && settings.embedding_model.vector_size) {
+                vectorSize = settings.embedding_model.vector_size;
+            }
+            // Try both formats for compatibility
+            let created = false;
+            try {
+                await qdrantClient.createCollection('bot_memories', {
+                    vectors: {
+                        size: vectorSize,
+                        distance: 'Cosine',
+                    }
+                });
+                created = true;
+                console.log('Qdrant collection created (format 1)');
+            } catch (err) {
+                if (err?.data?.status?.error && err.data.status.error.includes('VectorsConfig')) {
+                    try {
+                        await qdrantClient.createCollection('bot_memories', {
+                            vectors: {
+                                default: {
+                                    size: vectorSize,
+                                    distance: 'Cosine',
+                                }
+                            }
+                        });
+                        created = true;
+                        console.log('Qdrant collection created (format 2)');
+                    } catch (err2) {
+                        if (err2?.data?.status?.error && err2.data.status.error.includes('already exists')) {
+                            console.log('Qdrant collection already exists.');
+                        } else {
+                            throw err2;
+                        }
+                    }
+                } else if (err?.data?.status?.error && err.data.status.error.includes('already exists')) {
+                    console.log('Qdrant collection already exists.');
+                } else {
+                    throw err;
+                }
+            }
+        } catch (err) {
+            console.error('Failed to create Qdrant collection:', err);
+        }
+    }
 
     const args = parseArguments();
     const profiles = getProfiles(args);
@@ -85,21 +141,20 @@ try {
 
     if (error.message) {
         if (error.message.includes("ECONNREFUSED")) {
-            suggestedFix = `Ensure your game is Open to LAN on port ${settings.port}, and you're playing version ${settings.minecraft_version}. If you're using a different version, change it in settings.js!`
+            suggestedFix = `Ensure your game is Open to LAN on port ${settings.port}, and you're playing version ${settings.minecraft_version}. If you're using a different version, change it in settings.js!`;
         } else if (error.message.includes("ERR_MODULE_NOT_FOUND")) {
-            suggestedFix = "Run `npm install`."
+            suggestedFix = "Run `npm install`.";
         } else if (error.message.includes("ECONNRESET")) {
-            suggestedFix = `Make sure that you're playing version ${settings.minecraft_version}. If you're using a different version, change it in settings.js!`
+            suggestedFix = `Make sure that you're playing version ${settings.minecraft_version}. If you're using a different version, change it in settings.js!`;
         } else if (error.message.includes("ERR_DLOPEN_FAILED")) {
-            suggestedFix = "Delete the `node_modules` folder, and run `npm install` again."
+            suggestedFix = "Delete the `node_modules` folder, and run `npm install` again.";
         } else if (error.message.includes("Cannot read properties of null (reading 'version')")) {
-            suggestedFix = "Try again, with a vanilla Minecraft client - mindcraft-ce doesn't support mods!"
+            suggestedFix = "Try again, with a vanilla Minecraft client - mindcraft-ce doesn't support mods!";
         } else if (error.message.includes("not found in keys.json")) {
-            suggestedFix = "Ensure to rename `keys.example.json` to `keys.json`, and fill in the necessary API key."
+            suggestedFix = "Ensure to rename `keys.example.json` to `keys.json`, and fill in the necessary API key.";
         }
     }
 
-
-    console.log("\n\n✨ Suggested Fix: " + suggestedFix)
+    console.log("\n\n✨ Suggested Fix: " + suggestedFix);
     process.exit(1);
 }

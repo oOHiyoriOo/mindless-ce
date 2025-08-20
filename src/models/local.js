@@ -6,7 +6,7 @@ export class Local {
         this.model_name = model_name;
         this.params = params;
         // ToDo: Parse URL from model options like openrouter.
-        this.url = url || 'http://192.168.188.178:11434';
+        this.url = url || 'http://127.0.0.1:11434';
         this.chat_endpoint = '/api/chat';
         this.embedding_endpoint = '/api/embeddings';
         // Note: Actual multimodal support depends on the specific Ollama model (e.g., LLaVA, BakLLaVA)

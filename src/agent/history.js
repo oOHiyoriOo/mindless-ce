@@ -1,5 +1,6 @@
 
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
+import { randomUUID } from 'crypto';
 import { NPCData } from './npc/data.js';
 import settings from '../../settings.js';
 import { QdrantClient } from '@qdrant/js-client-rest';
@@ -90,12 +91,17 @@ export class History {
             if (!this.qdrantReady) await this.initQdrant();
             if (this.qdrantClient) {
                 try {
+                    // Use randomUUID for a valid Qdrant point ID
                     const embedding = await this.agent.prompter.embedding_model.embed(this.memory);
-                    // Upsert memory into Qdrant
+                    if (!embedding || !Array.isArray(embedding) || embedding.length === 0) {
+                        console.warn('[Qdrant] Skipping upsert: embedding is empty or invalid. Original memory text:');
+                        console.warn(this.memory);
+                        return;
+                    }
                     await this.qdrantClient.upsert('bot_memories', {
                         points: [
                             {
-                                id: `${this.name}_${Date.now()}`,
+                                id: randomUUID(),
                                 vector: embedding,
                                 payload: {
                                     bot: this.name,
@@ -118,7 +124,7 @@ export class History {
         console.log("Memory updated to: ", this.memory);
     }
 
-    async appendFullHistory(to_store) {
+    appendFullHistory(to_store) {
         if (this.full_history_fp === undefined) {
             const string_timestamp = new Date().toLocaleString().replace(/[/:]/g, '-').replace(/ /g, '').replace(/,/g, '_');
             this.full_history_fp = `./bots/${this.name}/histories/${string_timestamp}.json`;
@@ -151,7 +157,7 @@ export class History {
                 chunk.push(this.turns.shift()); // remove until turns starts with system/user message
 
             await this.summarizeMemories(chunk);
-            await this.appendFullHistory(chunk);
+            this.appendFullHistory(chunk);
         }
     }
 

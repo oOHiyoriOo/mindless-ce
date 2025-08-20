@@ -1,8 +1,23 @@
 {
-    "name": "ranni",
-    "model": "ollama/sweaterdog/andy-4",
-    "vision_model": "ollama/gemma3:4b",
-    "embedding": "ollama",
+    "name": "nami",
+    
+    "model": {
+        "api": "ollama",
+        "url": "http://192.168.188.178:11434",
+        "model": "ollama/sweaterdog/andy-4"
+    },
+
+    "vision_model": {
+        "api": "ollama",
+        "url": "http://192.168.188.178:11434",
+        "model": "ollama/gemma3:4b"
+    },
+
+    "embedding": {
+        "api": "ollama",
+        "url": "http://192.168.188.178:11434",
+        "model": "nomic-embed-text"
+    },
     "modes": {
         "self_preservation": true,
         "unstuck": true,

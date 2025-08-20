@@ -8,7 +8,7 @@ const settings = {
     // the mindserver manages all agents and hosts the UI
     "mindserver_port": 8080,
 
-    "base_profile": "D:\\.projects\\NodeJS\\mindcraft-ce\\profiles\\defaults\\survival.json", // survival, creative, assistant, or god_mode
+    "base_profile": "D:\\.projects\\NodeJS\\mindless-ce\\profiles\\defaults\\survival.json", // survival, creative, assistant, or god_mode
     "profiles": [
         "./ranni.json",
         // "./profiles/jibril.json",
@@ -21,7 +21,7 @@ const settings = {
 
     "load_memory": true, // load memory from previous session
     "init_message": "You want to become a Well known Trader! gather materials and Build a Shop! But be aware monsters try to interrupt you!", // sends to all on spawn
-    "only_chat_with": ["Server"], // users that the bots listen to and send general messages to. if empty it will chat publicly
+    "only_chat_with": ["NogitsuneZero"], // users that the bots listen to and send general messages to. if empty it will chat publicly
     "speak": false, // allows all bots to speak through system text-to-speech. works on windows, mac, on linux you need to `apt install espeak`
     "language": "en", // translate to/from this language. Supports these language names: https://cloud.google.com/translate/docs/languages
     "render_bot_view": true, // show bot's view in browser at localhost:3000, 3001...

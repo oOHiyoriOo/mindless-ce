@@ -177,6 +177,11 @@ export function getNearestBlock(bot, block_type, distance=16) {
 export function getNearbyEntities(bot, maxDistance=16) {
     let entities = [];
     for (const entity of Object.values(bot.entities)) {
+        // Validate entity structure before using
+        if (!entity || !entity.position || typeof entity.position.distanceTo !== 'function') {
+            console.warn('[getNearbyEntities] Skipping malformed entity:', entity);
+            continue;
+        }
         const distance = entity.position.distanceTo(bot.entity.position);
         if (distance > maxDistance) continue;
         entities.push({ entity: entity, distance: distance });
@@ -198,6 +203,11 @@ export function getNearbyPlayers(bot, maxDistance) {
     if (maxDistance == null) maxDistance = 16;
     let players = [];
     for (const entity of Object.values(bot.entities)) {
+        // Validate entity structure before using
+        if (!entity || !entity.position || typeof entity.position.distanceTo !== 'function') {
+            console.warn('[getNearbyPlayers] Skipping malformed entity:', entity);
+            continue;
+        }
         const distance = entity.position.distanceTo(bot.entity.position);
         if (distance > maxDistance) continue;
         if (entity.type == 'player' && entity.username != bot.username) {
