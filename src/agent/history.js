@@ -1,7 +1,8 @@
+
 import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
 import { NPCData } from './npc/data.js';
 import settings from '../../settings.js';
-
+import { QdrantClient } from '@qdrant/js-client-rest';
 
 export class History {
     constructor(agent) {
@@ -24,19 +25,94 @@ export class History {
         this.summary_chunk_size = 5; 
         // chunking reduces expensive calls to promptMemSaving and appendFullHistory
         // and improves the quality of the memory summary
+
+        // Qdrant client setup
+        this.qdrantClient = null;
+        this.qdrantReady = false;
+        if (settings.use_qdrant_memory) {
+            this.initQdrant();
+        }
+    }
+
+    initQdrant() {
+        if (this.qdrantReady) return;
+        this.qdrantClient = new QdrantClient({
+            url: settings.qdrant_url || 'http://localhost:6333',
+            port: settings.qdrant_port || 6333,
+        });
+        this.qdrantReady = true;
     }
 
     getHistory() { // expects an Examples object
         return JSON.parse(JSON.stringify(this.turns));
     }
 
+    // Query Qdrant for relevant memories given a context string
+    async queryQdrantForRelevantMemories(context, top_k = 3) {
+        if (!settings.use_qdrant_memory || !this.qdrantClient || !this.agent.prompter.embedding_model) return '';
+        try {
+            const queryEmbedding = await this.agent.prompter.embedding_model.embed(context);
+            const result = await this.qdrantClient.search('bot_memories', {
+                vector: queryEmbedding,
+                limit: top_k,
+                filter: {
+                    must: [
+                        { key: 'bot', match: { value: this.name } }
+                    ]
+                }
+            });
+
+            if (!result || !Array.isArray(result)) return '';
+            // Sort by score descending, join memory payloads
+            const memories = result
+                .filter(r => r && r.payload && r.payload.memory)
+                .sort((a, b) => (b.score || 0) - (a.score || 0))
+                .map(r => r.payload.memory.trim())
+                .filter(Boolean);
+
+            console.log("================================================");
+            console.log("Generated memories:", memories);
+            console.log("================================================");
+
+            return memories.join('\n');
+        } catch (err) {
+            console.error('Qdrant search failed:', err);
+            return '';
+        }
+    }
+
     async summarizeMemories(turns) {
         console.log("Storing memories...");
         this.memory = await this.agent.prompter.promptMemSaving(turns);
 
-        if (this.memory.length > 500) {
-            this.memory = this.memory.slice(0, 500);
-            this.memory += '...(Memory truncated to 500 chars. Compress it more next time)';
+        // Qdrant vector memory integration
+        if (settings.use_qdrant_memory && this.agent.prompter.embedding_model) {
+            if (!this.qdrantReady) await this.initQdrant();
+            if (this.qdrantClient) {
+                try {
+                    const embedding = await this.agent.prompter.embedding_model.embed(this.memory);
+                    // Upsert memory into Qdrant
+                    await this.qdrantClient.upsert('bot_memories', {
+                        points: [
+                            {
+                                id: `${this.name}_${Date.now()}`,
+                                vector: embedding,
+                                payload: {
+                                    bot: this.name,
+                                    memory: this.memory,
+                                    timestamp: Date.now(),
+                                },
+                            },
+                        ],
+                    });
+                    console.log('Memory upserted to Qdrant.');
+                } catch (err) {
+                    console.error('Qdrant upsert failed:', err);
+                }
+            }
+        } else if (this.memory.length > 1024) {
+            this.memory = this.memory.slice(0, 1024);
+            this.memory += '...(Memory truncated to 1024 chars. Compress it more next time)';
         }
 
         console.log("Memory updated to: ", this.memory);
@@ -79,16 +155,20 @@ export class History {
         }
     }
 
-    async save() {
+    save() {
         try {
             const data = {
-                memory: this.memory,
                 turns: this.turns,
                 self_prompting_state: this.agent.self_prompter.state,
                 self_prompt: this.agent.self_prompter.isStopped() ? null : this.agent.self_prompter.prompt,
                 taskStart: this.agent.task.taskStartTime,
                 last_sender: this.agent.last_sender
             };
+
+            if(!settings.use_qdrant_memory){
+                data.memory = this.memory;
+            }
+
             writeFileSync(this.memory_fp, JSON.stringify(data, null, 2));
             console.log('Saved memory to:', this.memory_fp);
         } catch (error) {
@@ -104,7 +184,11 @@ export class History {
                 return null;
             }
             const data = JSON.parse(readFileSync(this.memory_fp, 'utf8'));
-            this.memory = data.memory || '';
+            if (!settings.use_qdrant_memory) {
+                this.memory = data.memory || '';
+            } else {
+                this.memory = '';
+            }
             this.turns = data.turns || [];
             console.log('Loaded memory:', this.memory);
             return data;

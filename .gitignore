@@ -62,3 +62,4 @@ pnpm-lock.yaml
 .logging_consent
 # This file would have {"consent": null}, {"consent": false}, or {"consent": true} be set.
 # If the file doesn't exist, we can assume `consent` is `null`.
+.npmrc
